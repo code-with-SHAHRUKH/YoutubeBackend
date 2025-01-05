@@ -1,15 +1,16 @@
 
-// import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 
-// import ConnectDB from './db/index.js';
-// dotenv.config({path:'./env'});
-// ConnectDB()
+import ConnectDB from './db/index.js';
+dotenv.config({path:'./env'});
+ConnectDB()
 
 
 
 
 
 // this is also bet way to connect backend with DB but we apply above way cus this is Modular
+/*
 import mongoose from "mongoose";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -37,7 +38,7 @@ throw error
 }
 )()
 
-
+*/
 
 
 
