@@ -87,6 +87,7 @@ userSchema.methods.generateAccessToken = function(){
 
 //we generate RefreshToken from user data, REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRY
 userSchema.methods.generateRefreshToken = function(){
+    //jwt.sign generate the tokens
     return jwt.sign(
         {
             _id: this._id,
