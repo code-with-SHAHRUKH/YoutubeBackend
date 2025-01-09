@@ -13,7 +13,7 @@ const storage = multer.diskStorage({
   
 
   // yehi uploader asal me middle ware he jo k controller or router k beech inject ho ga...
-  // yani request or responce k beech koi he
+  // yani request or responce k beech koi he//
 export const upload = multer({ 
     storage, // starage will give me path of file this is stored on Local server
 })

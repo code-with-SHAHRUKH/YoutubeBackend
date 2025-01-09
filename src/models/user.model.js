@@ -99,4 +99,6 @@ userSchema.methods.generateRefreshToken = function(){
         }
     )
 }
+// yehi model mera db k saath linked he--> ise per hum Mongo k cruid opt lgae ge
+// ise hum us file me import kre ge jha hum ne DB me user add/del/update krna hoga
 export const User = mongoose.model("User", userSchema)
