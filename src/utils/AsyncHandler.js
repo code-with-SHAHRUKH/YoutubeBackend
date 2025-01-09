@@ -15,7 +15,8 @@ export {AsyncHandler};
 
 
 // thsi is Async method to create Async handler
-/*const AsyncHandler=(funct)=>{
+/*
+const AsyncHandler=(funct)=>{
 
     return async(req,res,next)=>{
 try {
