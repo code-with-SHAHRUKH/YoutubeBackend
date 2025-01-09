@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import app from './App.js';
 import ConnectDB from './db/index.js';
-dotenv.config({path:'./env'});
+dotenv.config({path:'./.env'});
 
 //ConnectDB give me promiss so we can use then with it(and run server)---> we can also use async await
 ConnectDB().then(() => {

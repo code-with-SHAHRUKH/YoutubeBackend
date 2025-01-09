@@ -1,9 +1,9 @@
 import { AsyncHandler } from "../utils/AsyncHandler.js";
 
-import {ApiError} from "../utils/ApiError.js"
-import { User} from "../models/user.model.js"
+import { ApiError } from "../utils/APIErrorStandarize.js"
+import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/Cloudinary.js"
-import { ApiResponse } from "../utils/ApiResponse.js";
+import { ApiResponse } from "../utils/APIRespStandarize.js";
 
 
 const registerUser = AsyncHandler( 
@@ -77,7 +77,7 @@ const registerUser = AsyncHandler(
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-    //res.status ko hi zyada tr server accept krta
+    //res.status ko hi zyada tr server accept
     return res.status(201).json(
         new ApiResponse(200, createdUser, "User registered Successfully")
     )
