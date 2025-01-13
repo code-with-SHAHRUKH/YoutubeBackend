@@ -6,9 +6,30 @@ import {uploadOnCloudinary} from "../utils/Cloudinary.js"
 import { ApiResponse } from "../utils/APIRespStandarize.js";
 
 
+const generateAccessAndRefereshTokens = async(userId) =>{
+    // mongoose k bydefaul  methods ko hum User se acces kare ge
+    // jo method hum ne khud se Schema me add kiye he Unhe hum user se access kare ge
+    try {
+        const user = await User.findById(userId)//--> ye mongoose ka method he // db  me se user laae ge
+        const accessToken = user.generateAccessToken()// ye hum ne khud se inject kiya he
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken//user data me refersh token bhej do
+        //user me nahi cheez add krne k baad use save karo
+        await user.save({ validateBeforeSave: false })// save krne se pehle db p/w maange ga but is object ki waja se nhi maange ga
+
+        return {accessToken, refreshToken}
+
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating referesh and access token")
+    }
+}
+
 const registerUser = AsyncHandler( 
     async (req,res,next,error) =>
      {
+        /*Registeration steps*/
    // get user details from frontend
     // validation - not empty
     // check if user already exists: username, email
@@ -51,7 +72,7 @@ const registerUser = AsyncHandler(
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)//agr img upload na hui to ye hm emptystring dega
 
     if (!avatar) {
         throw new ApiError(400, "Avatar file is required")
@@ -69,7 +90,7 @@ const registerUser = AsyncHandler(
     })
 
     const createdUser = await User.findById(user._id).select(
-        // agr user Db me created he to is me se ye ye cheeze hata o or Client ko do
+        // agr user Db me created he to is me se ye ye cheeze hata do or Client ko do
         "-password -refreshToken"
     )
 
@@ -77,7 +98,7 @@ const registerUser = AsyncHandler(
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-    //res.status ko hi zyada tr server accept
+    //res.status ko hi zyada tr server accept--> res.json k ander status bhi theek hi he
     return res.status(201).json(
         new ApiResponse(200, createdUser, "User registered Successfully")
     )
@@ -85,4 +106,154 @@ const registerUser = AsyncHandler(
      }
  )
 
- export {registerUser}
+
+
+ const loginUser = AsyncHandler(async (req,res)=>{
+    console.log("object req",req.header);
+    // req body -> data
+    // username or email
+    //find the user--> in DB
+    //password check
+    //access and referesh token--Generation
+    //send cookie
+    //send responce
+    const {email, username, password} = req.body
+    console.log("Data from front end",email,username,req.body);
+
+    // if (!username && !email) {
+    //     throw new ApiError(400, "username or email is required")
+    // }
+    
+    // Here is an alternative of above code based on logic discussed in video:
+    if (!(username || email)) {
+        throw new ApiError(400, "username or email is required")
+        
+    }
+
+    const user = await User.findOne({
+        $or: [{username}, {email}]
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist please Register your self")
+    }
+
+
+    // Mongoose k methos User model me he--> ye by default present hote
+    //or User model ne jo user bnaya he us k methods user obj me he--> ye hum ne khud se inject kiye he
+    //
+   const isPasswordValid = await user.isPasswordCorrect(password)
+
+   if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid user credentials")
+    }
+
+   const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
+
+// ab updated user ko db se fetch kare ge--> because tokens ab save hue he
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+// frontend/browser per kooklies send krne k lea hume options desighn krne perte...
+    const options = {
+        // in options k through hum kookies ko sirf server se modifyable bna de ge
+        //nhi to koi bhi fronend se inhe modify kr skta
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        // mobile kookies accept nhi krta use responce hi samagh aae ga
+        new ApiResponse(
+            200, 
+            {
+                user: loggedInUser, accessToken, refreshToken
+            },
+            "User logged In Successfully"
+        )
+    )
+
+})
+
+
+const logoutUser = AsyncHandler(async(req, res) => {
+
+    // user ko db se find karo or refresh token nikaal do
+    await User.findByIdAndUpdate(
+        //req.user hum middleware ki waja se le pa rahe...
+        req.user._id,
+        {
+            $unset: {
+                refreshToken: 1 // this removes the field from document
+            }
+        },
+        {
+            new: true  // is se hume update hone k baad ki info return hoti he
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)// acces token clear means user logged Out
+    .clearCookie("refreshToken", options)// refresh token clear means user k lea Acces token ab nhi generate ho ga
+    .json(new ApiResponse(200, {}, "User logged Out"))
+})
+
+/*when the access token will expire then this controller will call from frontend to generate new Acces-Token*/
+// this is also used fro AutoLogin the User
+const refreshAccessToken = AsyncHandler(async (req, res) => {
+    //token from user
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if (!incomingRefreshToken) {
+        throw new ApiError(401, "unauthorized request")
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        )
+    
+        const user = await User.findById(decodedToken?._id)
+    
+        if (!user) {
+            throw new ApiError(401, "Invalid refresh token")
+        }
+    
+        if (incomingRefreshToken !== user?.refreshToken) {
+            throw new ApiError(401, "Refresh token is expired or used")
+            
+        }
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
+    
+        return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", newRefreshToken, options)
+        .json(
+            new ApiResponse(
+                200, 
+                {accessToken, refreshToken: newRefreshToken},
+                "Access token refreshed"
+            )
+        )
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token")
+    }
+
+})
+ export {registerUser,loginUser,logoutUser,refreshAccessToken};
