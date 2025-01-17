@@ -279,7 +279,10 @@ const changeCurrentPassword = AsyncHandler(async(req, res) => {
 })
 
 
-const getCurrentUser = AsyncHandler(async(req, res) => {
+
+// here i learn how to connect 1 document/model with other document
+const getCurrentUser = AsyncHandler(async(req, res) =>
+     {
     return res
     .status(200)
     .json(new ApiResponse(
@@ -376,9 +379,110 @@ const updateUserCoverImage = AsyncHandler(async(req, res) => {
     return res
     .status(200)
     .json(
+
         new ApiResponse(200, user, "Cover image updated successfully")
     )
 })
+
+
+const getUserChannelProfile = AsyncHandler(async(req, res) => {
+    const {username} = req.params// url se user ka name lo
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+
+    // ye aggregate khud he Db se user ko search kre ga $match---> Find method lagane ki zaroorat nahi
+    const channel = await User.aggregate([
+        {
+            // ye pipeline parameter se ane wale user ko Db k documents se match krta/serach krta
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+
+
+
+             // Channel k subscribers found krne/ Channel ko Subscriber document se Joining
+        {
+            $lookup: {
+                from: "subscriptions",// Subscription model se subscribers lo
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"// kitne subscribers he
+            }//--> ye user Document ko array of objts return krta he jis ka name 'subscribers' ho ga
+        },
+        {
+            $lookup: {
+                from: "subscriptions",// Subscription model se subscribe to lo
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"// kin kin channels ko user ne subscribe kiya hua he
+            }
+        },
+        {
+
+            // user document me ye sab fields add kar do
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                // jis channel ki detal mughe mili he use me ne subscribe kiya hua he k nhi
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id, "$subscribers.subscriber"]},// subscriber document me me hu k nhi
+                        then: true,
+                        else: false
+                    }
+                }
+                //better of above
+                // isSubscribed: {
+                //     $cond: {
+                //         if: { $ne: ["$username", req.user?.username] }, // Check if the logged-in user is viewing another user's channel
+                //         then: {
+                //             $in: [req.user?._id, "$subscribers.subscriber"] // Check if the logged-in user has subscribed to this channel
+                //         },
+                //         else: "$$REMOVE" // Remove field for the user's own channel
+                //     }
+                // }
+
+            }
+        },
+
+
+        // this pipe line is used to send selected things in frontend
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+
+            }
+        }
+    ])
+
+    if (!channel?.length) {
+        throw new ApiError(404, "channel does not exists")
+    }
+console.log("Channel details from Db:",channel);
+    // channel se hume array of object mele ga hume just 1st object dena user ko
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, channel[0], "User channel fetched successfully")
+    )
+})
+
+
 
 
  export {
@@ -390,4 +494,6 @@ const updateUserCoverImage = AsyncHandler(async(req, res) => {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage,};
+    updateUserCoverImage,
+    getUserChannelProfile
+};
